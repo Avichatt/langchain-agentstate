@@ -1,81 +1,120 @@
-# LangChain Agent State & Planner Explained
+# 🚀 Production-Grade LangChain Agentic Workflow
 
-This project demonstrates a basic agentic workflow using **LangGraph**, **LangChain**, and **Groq**. It uses a "Planner" agent to break down a high-level goal into a series of actionable tasks.
+This repository implements a sophisticated, multi-agent research and synthesis pipeline using **LangGraph**, **LangChain**, and **Groq**. The system is designed for iterative quality improvement through a Planner-Executor-Verifier-Synthesizer architecture.
 
-## 📊 Workflow Diagram
+## 📊 System Architecture
+
+The following diagram illustrates the production-level flow of data and control within the agentic system, highlighting the internal components of each node.
 
 ```mermaid
 graph TD
-    Start((Start)) --> InitState[Initialize State<br/>'goal']
-    InitState --> PlannerNode[Planner Node]
-    PlannerNode --> LLM[Groq Llama 3.1]
-    LLM --> ParseJSON[Parse JSON Tasks]
-    ParseJSON --> UpdateState[Update State<br/>'tasks']
-    UpdateState --> End((End))
+    %% Global Styling
+    classDef state fill:#f9f,stroke:#333,stroke-width:2px;
+    classDef node fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef tool fill:#fff9c4,stroke:#fbc02d,stroke-width:1px;
 
-    subgraph LangGraph
-        PlannerNode
+    subgraph UserInterface["User Entry Point"]
+        Goal[User Goal]
     end
+
+    subgraph GlobalState["Shared Agent State (TypedDict)"]
+        direction LR
+        S1[goal]
+        S2[tasks]
+        S3[results]
+        S4[critique]
+        S5[iteration]
+    end
+
+    Goal --> PlannerNode
+
+    subgraph PlannerNode["Planner Agent Node"]
+        direction TB
+        P1[Goal Decomposition]
+        P2[JSON Schema Validation]
+        P3[Groq Llama 3.1 8B]
+        P1 --> P3 --> P2
+    end
+
+    subgraph ExecutorNode["Executor Agent Node"]
+        direction TB
+        E1[DuckDuckGo Search Tool]
+        E2[Contextual Augmentation]
+        E3[Groq Llama 3.1 8B]
+        E1 --> E2 --> E3
+    end
+
+    subgraph VerifierNode["Verifier Agent Node"]
+        direction TB
+        V1[Quality Rubric Scoring]
+        V2[Decision Logic]
+        V3[Groq Llama 3.1 8B]
+        V1 --> V3 --> V2
+    end
+
+    subgraph SynthesizerNode["Synthesizer Agent Node"]
+        direction TB
+        Sy1[Markdown Engine]
+        Sy2[Professional Synthesis]
+        Sy3[Groq Llama 3.1 8B]
+        Sy1 --> Sy3 --> Sy2
+    end
+
+    %% Flow Connections
+    PlannerNode -->|"Generated Tasks"| ExecutorNode
+    ExecutorNode -->|"Research Results"| VerifierNode
+    
+    VerifierNode -- "Critique & Retry" --> PlannerNode
+    VerifierNode -- "Quality Approved" --> SynthesizerNode
+    
+    SynthesizerNode --> FinalReport[Final Structured Report]
+
+    %% Applying Classes
+    class GlobalState state;
+    class PlannerNode,ExecutorNode,VerifierNode,SynthesizerNode node;
+    class E1,P3,V3,Sy3 tool;
 ```
 
 ---
 
-## 📝 Line-by-Line Explanation
+## 📝 Component Breakdown
 
-### 1. Imports and Setup
-- **`import os`**: Used to interact with the operating system (though in this script, the key is hardcoded for demonstration).
-- **`from dotenv import load_dotenv`**: Loads environment variables from a `.env` file (like API keys).
-- **`from typing import TypedDict, List`**: Imports types to define the "State" of our agent. `TypedDict` ensures our state has specific keys.
+### 1. **Global State (`AgentState`)**
+The backbone of the system, acting as a "Short-Term Memory" (STM) shared across all nodes. It maintains source traceability, task lists, and iterative critique history.
 
-### 2. LangChain & LangGraph Imports
-- **`from langgraph.graph import StateGraph, END`**: The core of LangGraph. `StateGraph` creates the workflow, and `END` marks where it stops.
-- **`from langchain_openai import ChatOpenAI`**: (Imported but not used here, used for OpenAI models).
-- **`from langchain_core.messages import SystemMessage, HumanMessage`**: Classes to format messages for the AI (System instructions vs. User input).
-- **`from langchain_community.tools import DuckDuckGoSearchRun`**: A tool that allows the agent to search the web (available for future nodes).
-- **`from langchain_groq import ChatGroq`**: The driver to connect LangChain to Groq's fast Llama models.
+### 2. **Planner Agent**
+- **Function**: Breaks down high-level user goals into a sequence of atomic, researchable tasks.
+- **Tech Stack**: Uses **Groq Llama 3.1** with a strict JSON-only output format to ensure downstream compatibility.
 
-### 3. LLM Initialization
-- **`load_dotenv()`**: Triggers the loading of the `.env` file.
-- **`llm = ChatGroq(...)`**: Creates the "brain" of the agent. 
-    - `model="llama-3.1-8b-instant"`: Uses Meta's Llama 3.1 model.
-    - `api_key="..."`: Authenticates your request.
-    - `temperature=0`: Makes the output predictable and focused (best for planning).
+### 3. **Executor Agent**
+- **Tools**: Integrated with **DuckDuckGo Search** for real-time web research.
+- **Function**: Iterates through the plan, fetches external context, and uses the LLM to generate grounded, fact-based answers for each sub-task.
 
-### 4. Defining the State (`AgentState`)
-The **State** is a shared "memory" that every node in the graph can read from and write to.
-- `goal`: What the user wants.
-- `tasks`: The list of steps generated by the planner.
-- `results`: Where actual work data would be stored.
-- `critique`: Feedback on the work.
-*This ensures all parts of the agent stay on the same page.*
+### 4. **Verifier Agent (Quality Control)**
+- **Function**: Acts as a "Human-in-the-loop" simulator. It scores the work based on *completeness*, *accuracy*, and *clarity*.
+- **Logic**: If the score is below the threshold, it generates a `critique` and loops back to the Planner for a refined approach.
 
-### 5. The Planner Node (`planner`)
-This is a Python function that acts as a "Node" in our graph.
-- **System Prompt**: Tells the AI exactly how to behave ("You are a planning agent... Respond only with JSON").
-- **LLM Call**: Sends the goal to the LLM.
-- **JSON Parsing**: The LLM returns a string. We use `json.loads` to turn that string into a Python list of tasks.
-- **Return**: The function returns the updated state with the new `tasks`.
-
-### 6. Building the Graph
-- **`graph = StateGraph(AgentState)`**: Initializes a new workflow that uses our `AgentState` schema.
-- **`graph.add_node("planner", planner)`**: Registers our function as a node named "planner".
-- **`graph.set_entry_point("planner")`**: Tells the graph where to start.
-- **`graph.add_edge("planner", END)`**: Tells the graph to stop after the planner is done.
-- **`app = graph.compile()`**: Turns the blueprint into an executable application.
-
-### 7. Execution Block
-- **`initial_state = { ... }`**: Defines the starting data (the user's goal).
-- **`app.invoke(initial_state)`**: Starts the engine! It flows through the graph and returns the final state.
-- **Printing**: The script finally loops through the generated tasks and prints them to your console.
+### 5. **Synthesizer Agent**
+- **Function**: The final polish. It takes fragmented research results and weaves them into a professional, executive-level Markdown summary.
 
 ---
 
-## 🚀 How to Run
-1. Install dependencies:
+## 🛠️ Installation & Setup
+
+1. **Clone the repository**:
    ```bash
-   pip install langgraph langchain-groq python-dotenv duckduckgo-search
+   git clone https://github.com/Avichatt/langchain-agentstate.git
    ```
-2. Run the script:
+2. **Install Dependencies**:
+   ```bash
+   pip install langgraph langchain-groq python-dotenv duckduckgo-search ddgs
+   ```
+3. **Environment Configuration**:
+   Create a `.env` file in the root directory:
+   ```env
+   GROQ_API_KEY=your_api_key_here
+   ```
+4. **Run the System**:
    ```bash
    python langchain_agentState.py
    ```
