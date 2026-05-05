@@ -1,120 +1,129 @@
-# 🚀 Production-Grade LangChain Agentic Workflow
+# 🤖 AI Multi-Agent Research Assistant
 
-This repository implements a sophisticated, multi-agent research and synthesis pipeline using **LangGraph**, **LangChain**, and **Groq**. The system is designed for iterative quality improvement through a Planner-Executor-Verifier-Synthesizer architecture.
+**Goal**: Deliver accurate, well-researched, and well-structured answers through iterative planning, execution, verification, and synthesis.
 
-## 📊 System Architecture
+---
 
-The following diagram illustrates the production-level flow of data and control within the agentic system, highlighting the internal components of each node.
+## 🏛️ High-Level Architecture
+
+This system leverages a state-of-the-art multi-agent design, utilizing **LangGraph** for orchestration, **Groq Llama 3.1** for reasoning, and **DuckDuckGo** for real-time information retrieval.
 
 ```mermaid
 graph TD
+    %% Theme: Dark / Professional
+    accTitle: AI Multi-Agent Research Assistant Architecture
+    accDescr: A detailed flowchart showing the interaction between Global State, Planner, Executor, Verifier, and Synthesizer agents.
+
     %% Global Styling
-    classDef state fill:#f9f,stroke:#333,stroke-width:2px;
-    classDef node fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
-    classDef tool fill:#fff9c4,stroke:#fbc02d,stroke-width:1px;
+    classDef state fill:#1a1a1a,stroke:#4a90e2,stroke-width:2px,color:#fff;
+    classDef agent fill:#2c2c2c,stroke:#50e3c2,stroke-width:2px,color:#fff;
+    classDef decision fill:#333,stroke:#f5a623,stroke-width:2px,color:#fff;
+    classDef tool fill:#1a1a1a,stroke:#d0021b,stroke-width:1px,color:#ccc,stroke-dasharray: 5 5;
+    classDef output fill:#1a1a1a,stroke:#7ed321,stroke-width:2px,color:#fff;
 
-    subgraph UserInterface["User Entry Point"]
-        Goal[User Goal]
-    end
-
-    subgraph GlobalState["Shared Agent State (TypedDict)"]
+    %% Global State (STM)
+    subgraph GlobalState["1. GLOBAL STATE (AgentState) - Short-Term Memory (STM)"]
         direction LR
-        S1[goal]
-        S2[tasks]
-        S3[results]
-        S4[critique]
-        S5[iteration]
+        StateInfo["• goal: str<br/>• plan: List[Task]<br/>• iteration: int<br/>• results: List[str]<br/>• critique: str<br/>• approved: bool"]
     end
 
-    Goal --> PlannerNode
+    %% User Input
+    UserInput([User Input: High-level Goal]) --> PlannerAgent
 
-    subgraph PlannerNode["Planner Agent Node"]
+    %% Planner Agent
+    subgraph PlannerNode["2. PLANNER AGENT"]
         direction TB
-        P1[Goal Decomposition]
-        P2[JSON Schema Validation]
-        P3[Groq Llama 3.1 8B]
-        P1 --> P3 --> P2
+        P_Func["Function: Breaks down goals into<br/>atomic, researchable tasks."]
+        P_Stack["Tech Stack: Groq Llama 3.1"]
+        P_Out["Output: Strict JSON (Plan)"]
     end
 
-    subgraph ExecutorNode["Executor Agent Node"]
+    %% Executor Agent
+    subgraph ExecutorNode["3. EXECUTOR AGENT"]
         direction TB
-        E1[DuckDuckGo Search Tool]
-        E2[Contextual Augmentation]
-        E3[Groq Llama 3.1 8B]
-        E1 --> E2 --> E3
+        E_Tools["Tools: DuckDuckGo Search"]
+        E_Func["Function: Fetches real-time web<br/>context and generates answers."]
+        E_Out["Output: Research result per task"]
     end
 
-    subgraph VerifierNode["Verifier Agent Node"]
+    %% Verifier Agent
+    subgraph VerifierNode["4. VERIFIER AGENT (Quality Control)"]
         direction TB
-        V1[Quality Rubric Scoring]
-        V2[Decision Logic]
-        V3[Groq Llama 3.1 8B]
-        V1 --> V3 --> V2
+        V_Func["Function: Scores work on<br/>completeness, accuracy, and clarity."]
+        V_Logic["Logic: Generate critique if<br/>score < threshold."]
+        V_Out["Output: Score + Critique"]
     end
 
-    subgraph SynthesizerNode["Synthesizer Agent Node"]
+    %% Synthesizer Agent
+    subgraph SynthesizerNode["5. SYNTHESIZER AGENT"]
         direction TB
-        Sy1[Markdown Engine]
-        Sy2[Professional Synthesis]
-        Sy3[Groq Llama 3.1 8B]
-        Sy1 --> Sy3 --> Sy2
+        S_Func["Function: Weaves verified results<br/>into a professional report."]
+        S_Out["Output: Polished Markdown Summary"]
     end
 
-    %% Flow Connections
-    PlannerNode -->|"Generated Tasks"| ExecutorNode
-    ExecutorNode -->|"Research Results"| VerifierNode
-    
-    VerifierNode -- "Critique & Retry" --> PlannerNode
-    VerifierNode -- "Quality Approved" --> SynthesizerNode
-    
-    SynthesizerNode --> FinalReport[Final Structured Report]
+    %% Decision Logic
+    Decision{Score ≥ Threshold?}
+
+    %% Connections
+    GlobalState -.->|Read/Write| PlannerNode
+    GlobalState -.->|Read/Write| ExecutorNode
+    GlobalState -.->|Read/Write| VerifierNode
+    GlobalState -.->|Read/Write| SynthesizerNode
+
+    PlannerNode --> ExecutorNode
+    ExecutorNode --> VerifierNode
+    VerifierNode --> Decision
+
+    Decision -- "NO (Needs Improvement)" --> PlannerNode
+    Decision -- "YES (Approved)" --> SynthesizerNode
+
+    SynthesizerNode --> FinalOutput[[FINAL OUTPUT: Executive Summary]]
+
+    %% External Tools
+    DDG{{DuckDuckGo Search Tool}} -.->|External Context| ExecutorNode
 
     %% Applying Classes
     class GlobalState state;
-    class PlannerNode,ExecutorNode,VerifierNode,SynthesizerNode node;
-    class E1,P3,V3,Sy3 tool;
+    class PlannerNode,ExecutorNode,VerifierNode,SynthesizerNode agent;
+    class Decision decision;
+    class DDG tool;
+    class FinalOutput output;
 ```
 
 ---
 
-## 📝 Component Breakdown
+## 🛠️ Agent Responsibilities
 
-### 1. **Global State (`AgentState`)**
-The backbone of the system, acting as a "Short-Term Memory" (STM) shared across all nodes. It maintains source traceability, task lists, and iterative critique history.
+### 1. **Global State (STM)**
+Acts as the "Source of Truth" shared across all agents. It stores the user's objective, the generated research plan, raw results, and the iterative feedback loop history.
 
 ### 2. **Planner Agent**
-- **Function**: Breaks down high-level user goals into a sequence of atomic, researchable tasks.
-- **Tech Stack**: Uses **Groq Llama 3.1** with a strict JSON-only output format to ensure downstream compatibility.
+- **Objective**: Strategic decomposition.
+- **Output**: A structured list of tasks designed to eliminate ambiguity and maximize research depth.
 
 ### 3. **Executor Agent**
-- **Tools**: Integrated with **DuckDuckGo Search** for real-time web research.
-- **Function**: Iterates through the plan, fetches external context, and uses the LLM to generate grounded, fact-based answers for each sub-task.
+- **Objective**: Grounded execution.
+- **Capability**: Utilizes the **DuckDuckGo Search** tool to pull live data, ensuring the assistant isn't limited by its training data cutoff.
 
-### 4. **Verifier Agent (Quality Control)**
-- **Function**: Acts as a "Human-in-the-loop" simulator. It scores the work based on *completeness*, *accuracy*, and *clarity*.
-- **Logic**: If the score is below the threshold, it generates a `critique` and loops back to the Planner for a refined approach.
+### 4. **Verifier Agent (The Evaluator)**
+- **Objective**: Quality assurance.
+- **Logic**: It performs a critical audit of the research. If the content is hallucinated or incomplete, it forces a "Critique Loop" to re-plan and re-execute.
 
 ### 5. **Synthesizer Agent**
-- **Function**: The final polish. It takes fragmented research results and weaves them into a professional, executive-level Markdown summary.
+- **Objective**: Executive presentation.
+- **Output**: Transforms fragmented data points into a cohesive, professional Markdown report suitable for high-stakes decision-making.
 
 ---
 
-## 🛠️ Installation & Setup
+## 🚀 Getting Started
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/Avichatt/langchain-agentstate.git
-   ```
-2. **Install Dependencies**:
+1. **Setup Environment**:
    ```bash
    pip install langgraph langchain-groq python-dotenv duckduckgo-search ddgs
    ```
-3. **Environment Configuration**:
-   Create a `.env` file in the root directory:
-   ```env
-   GROQ_API_KEY=your_api_key_here
-   ```
-4. **Run the System**:
+2. **API Configuration**:
+   Add your `GROQ_API_KEY` to a `.env` file.
+3. **Execution**:
    ```bash
    python langchain_agentState.py
    ```
